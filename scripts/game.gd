@@ -13,6 +13,7 @@ var _objective: Label
 var _fade: ColorRect
 var _crosshair: ColorRect
 var _capture_hint: Label
+var _touch: TouchControls
 var _pause_menu: Control
 var _end_card: Control
 var _end_title: Label
@@ -45,7 +46,7 @@ func _process(delta: float) -> void:
 	var material := _post_fx.material as ShaderMaterial
 	var current: float = material.get_shader_parameter("tension")
 	material.set_shader_parameter("tension", lerpf(current, GameState.tension, minf(delta * 3.0, 1.0)))
-	_capture_hint.visible = not _paused and not _ended and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
+	_capture_hint.visible = not GameState.touch_mode and not _paused and not _ended and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
 	if Input.is_action_just_pressed("ui_cancel") and not _ended:
 		_set_paused(not _paused)
 
@@ -72,8 +73,12 @@ func glitch(seconds: float) -> void:
 # --- Signals --------------------------------------------------------------
 
 func _on_prompt_changed(text: String) -> void:
-	_prompt.text = text
-	_prompt.visible = text != ""
+	var shown := text
+	if GameState.touch_mode:
+		shown = text.replace("[E] Reach out\n[Q] Back away", "Use to reach out, or back away").replace("[E] ", "").replace("[Q] ", "")
+	_prompt.text = shown
+	_prompt.visible = shown != ""
+	_touch.set_back_away_visible(text.contains("Back away"))
 
 func _on_subtitle(text: String, seconds: float) -> void:
 	_subtitle_serial += 1
@@ -105,6 +110,7 @@ func _on_perspective_changed(perspective: GameState.Perspective) -> void:
 
 func _on_ending(title: String, text: String) -> void:
 	_ended = true
+	_touch.set_enabled(false)
 	_prompt.visible = false
 	_subtitle_panel.visible = false
 	_crosshair.visible = false
@@ -203,6 +209,10 @@ func _build_hud() -> void:
 	_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_subtitle.add_theme_font_size_override("font_size", 22)
 	_subtitle_panel.add_child(_subtitle)
+
+	_touch = TouchControls.new()
+	_touch.pause_requested.connect(func() -> void: _set_paused(not _paused))
+	add_child(_touch)
 
 	_fade = ColorRect.new()
 	_fade.color = Color.BLACK

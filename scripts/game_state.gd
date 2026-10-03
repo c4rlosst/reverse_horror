@@ -21,6 +21,8 @@ var started_msec: int = 0
 ## 0..1, how close the player is to being found (or, as the monster, found out).
 var tension: float = 0.0
 
+## True once the player has touched the screen; false again on any key or mouse.
+var touch_mode: bool = false
 var mouse_sensitivity: float = 1.0
 var master_volume: float = 0.8
 

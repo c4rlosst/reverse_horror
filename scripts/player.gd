@@ -43,14 +43,16 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _unhandled_input(event: InputEvent) -> void:
+	if GameState.touch_mode:
+		return
 	if event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		_look(event.relative)
+		look_by(event.relative)
 	elif event.is_action_pressed("interact"):
-		_interact()
+		try_interact()
 	elif event.is_action_pressed("flashlight"):
-		_toggle_flashlight()
+		toggle_flashlight()
 
 func _physics_process(delta: float) -> void:
 	_head_y = lerpf(_head_y, _target_head_height(), minf(delta * 8.0, 1.0))
@@ -128,7 +130,7 @@ func _set_pitch(value: float) -> void:
 	_pitch = value
 	_head.rotation.x = _pitch
 
-func _look(relative: Vector2) -> void:
+func look_by(relative: Vector2) -> void:
 	if not controls_enabled:
 		return
 	var sensitivity := MOUSE_SENSITIVITY * GameState.mouse_sensitivity
@@ -207,7 +209,7 @@ func _flicker_flashlight() -> void:
 	var stutter := GameState.tension > 0.5 and randf() < (GameState.tension - 0.4) * 0.35
 	_flashlight.light_energy = 0.4 if stutter else 2.0
 
-func _interact() -> void:
+func try_interact() -> void:
 	if not controls_enabled:
 		return
 	if hiding_in != null:
@@ -239,7 +241,7 @@ func _set_prompt(text: String) -> void:
 	_last_prompt = shown
 	GameState.prompt_changed.emit(shown)
 
-func _toggle_flashlight() -> void:
+func toggle_flashlight() -> void:
 	if hiding_in != null or GameState.perspective == GameState.Perspective.MONSTER:
 		return
 	_flashlight.visible = not _flashlight.visible

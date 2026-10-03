@@ -46,7 +46,10 @@ func _begin() -> void:
 	phase = Phase.RINGING
 	await _wait(9.0)
 	if phase == Phase.RINGING:
-		GameState.say("Move with WASD. Press E on the phone.", 4.0)
+		if GameState.touch_mode:
+			GameState.say("Drag the left side to move, the right to look. Tap Use at the phone.", 5.0)
+		else:
+			GameState.say("Move with WASD. Press E on the phone.", 4.0)
 
 func _connect_items() -> void:
 	var items: Dictionary = _house.items

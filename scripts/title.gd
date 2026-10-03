@@ -86,7 +86,10 @@ func _build() -> void:
 	column.add_child(filler)
 
 	var controls := Label.new()
-	controls.text = "WASD move   Shift run   C crouch   E interact   F flashlight   Esc pause\nPlays best in the dark, with headphones."
+	if DisplayServer.is_touchscreen_available():
+		controls.text = "Left thumb moves, drag the right side to look. Use, Run, Crouch and Light are on screen.\nPlays best in the dark, with headphones."
+	else:
+		controls.text = "WASD move   Shift run   C crouch   E interact   F flashlight   Esc pause\nPlays best in the dark, with headphones."
 	controls.add_theme_color_override("font_color", UiTheme.DIM)
 	controls.add_theme_font_size_override("font_size", 16)
 	column.add_child(controls)
