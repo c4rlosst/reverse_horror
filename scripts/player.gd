@@ -5,6 +5,11 @@ extends CharacterBody3D
 
 const MOUSE_SENSITIVITY := 0.0022
 const GRAVITY := 12.0
+const FOOTSTEPS: Array[AudioStream] = [
+	preload("res://audio/footstep_1.wav"),
+	preload("res://audio/footstep_2.wav"),
+	preload("res://audio/footstep_3.wav"),
+]
 
 @export var walk_speed: float = 2.4
 @export var sprint_speed: float = 4.0
@@ -13,6 +18,7 @@ const GRAVITY := 12.0
 @export var stand_height: float = 1.6
 @export var crouch_height: float = 1.0
 @export var monster_height: float = 1.3
+@export var stride_length: float = 1.6
 
 var controls_enabled: bool = true
 var hiding_in: HidingSpot = null
@@ -22,6 +28,8 @@ var _pitch: float = 0.0
 var _head_y: float = 1.6
 var _bob_time: float = 0.0
 var _last_prompt: String = ""
+var _stride_progress: float = 0.0
+var _step_player := AudioStreamPlayer.new()
 
 @onready var _collision: CollisionShape3D = $Collision
 @onready var _head: Node3D = $Head
@@ -32,6 +40,7 @@ func _ready() -> void:
 	add_to_group("player")
 	_yaw = rotation.y
 	_head_y = stand_height
+	add_child(_step_player)
 	GameState.perspective_changed.connect(_on_perspective_changed)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -101,8 +110,25 @@ func _move(delta: float) -> void:
 	velocity.y = 0.0 if is_on_floor() else velocity.y - GRAVITY * delta
 	move_and_slide()
 	var moving := input.length() > 0.1
+	if moving and is_on_floor():
+		_stride_progress += Vector2(velocity.x, velocity.z).length() * delta
+		if _stride_progress >= stride_length:
+			_stride_progress = 0.0
+			_play_footstep()
 	_bob_time += delta * speed * (2.2 if moving else 0.0)
 	_head.position.y = _head_y + (sin(_bob_time) * 0.02 if moving else 0.0)
+
+func _play_footstep() -> void:
+	_step_player.stream = FOOTSTEPS[randi() % FOOTSTEPS.size()]
+	var monster := GameState.perspective == GameState.Perspective.MONSTER
+	_step_player.pitch_scale = randf_range(0.9, 1.05) * (0.75 if monster else 1.0)
+	if monster or Input.is_action_pressed("crouch"):
+		_step_player.volume_db = -14.0
+	elif Input.is_action_pressed("sprint"):
+		_step_player.volume_db = -2.0
+	else:
+		_step_player.volume_db = -8.0
+	_step_player.play()
 
 func _current_speed() -> float:
 	if GameState.perspective == GameState.Perspective.MONSTER:

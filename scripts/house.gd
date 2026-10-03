@@ -5,6 +5,9 @@ extends Node3D
 const WALL_HEIGHT := 2.6
 const WALL_THICKNESS := 0.2
 
+const RING_SOUND: AudioStream = preload("res://audio/phone_ring.wav")
+const PICKUP_SOUND: AudioStream = preload("res://audio/phone_pickup.wav")
+
 const ENDING_STEP_FORWARD := "They knew your footsteps before they saw you. Nobody turned the light on."
 const ENDING_RETREAT := "You went back into the dark. They stopped looking eventually. You didn't."
 
@@ -17,6 +20,7 @@ var _lights: Array[OmniLight3D] = []
 var _light_energies: Array[float] = []
 
 var _phone: Interactable
+var _phone_audio := AudioStreamPlayer3D.new()
 var _footprints: Interactable
 var _step_forward: Interactable
 var _retreat: Interactable
@@ -105,6 +109,12 @@ func _build_hiding_spots() -> void:
 func _build_interactables() -> void:
 	_phone = _interactable("Phone", Vector3(3.0, 1.0, 4.82), Vector3(0.35, 0.25, 0.15), "Answer the phone")
 	_phone.interacted.connect(_on_phone_answered)
+	_phone_audio.unit_size = 6.0
+	_phone_audio.max_distance = 30.0
+	_phone_audio.stream = RING_SOUND
+	_phone_audio.finished.connect(_phone_audio.play)
+	_phone.add_child(_phone_audio)
+	_phone_audio.play()
 
 	_footprints = _interactable("Footprints", Vector3(5.5, 0.01, -3.9), Vector3(0.6, 0.02, 1.6), "Look at the floor")
 	_footprints.get_child(0).material_override = _prints_material
@@ -136,6 +146,9 @@ func _patrol_route() -> Array[Vector3]:
 
 func _on_phone_answered(_who: Player) -> void:
 	_phone.enabled = false
+	_phone_audio.finished.disconnect(_phone_audio.play)
+	_phone_audio.stream = PICKUP_SOUND
+	_phone_audio.play()
 	GameState.raise_event(&"phone_answered")
 	_say("Hello?", 2.0)
 	await get_tree().create_timer(2.8).timeout
