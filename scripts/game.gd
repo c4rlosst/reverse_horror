@@ -12,6 +12,7 @@ var _subtitle_panel: PanelContainer
 var _objective: Label
 var _fade: ColorRect
 var _crosshair: ColorRect
+var _capture_hint: Label
 var _pause_menu: Control
 var _end_card: Control
 var _end_title: Label
@@ -44,6 +45,7 @@ func _process(delta: float) -> void:
 	var material := _post_fx.material as ShaderMaterial
 	var current: float = material.get_shader_parameter("tension")
 	material.set_shader_parameter("tension", lerpf(current, GameState.tension, minf(delta * 3.0, 1.0)))
+	_capture_hint.visible = not _paused and not _ended and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
 	if Input.is_action_just_pressed("ui_cancel") and not _ended:
 		_set_paused(not _paused)
 
@@ -159,6 +161,17 @@ func _build_hud() -> void:
 	_objective.add_theme_constant_override("outline_size", 6)
 	_objective.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	hud.add_child(_objective)
+
+	_capture_hint = Label.new()
+	_capture_hint.text = "Click to look around"
+	_capture_hint.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_capture_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_capture_hint.offset_top = 90
+	_capture_hint.add_theme_color_override("font_color", UiTheme.BONE)
+	_capture_hint.add_theme_constant_override("outline_size", 8)
+	_capture_hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+	_capture_hint.visible = false
+	hud.add_child(_capture_hint)
 
 	_prompt = Label.new()
 	_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)

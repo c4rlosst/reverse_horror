@@ -71,7 +71,8 @@ func _build() -> void:
 	column.add_child(_menu)
 	_menu_button("Start game", _start)
 	_menu_button("Settings", _toggle_settings)
-	_menu_button("Quit", func() -> void: get_tree().quit())
+	if not OS.has_feature("web"):
+		_menu_button("Quit", func() -> void: get_tree().quit())
 
 	_settings = VBoxContainer.new()
 	_settings.add_theme_constant_override("separation", 8)
