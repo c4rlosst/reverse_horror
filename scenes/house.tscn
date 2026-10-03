@@ -1,0 +1,26 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/house.gd" id="1_house"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/shadow_figure.tscn" id="3_figure"]
+
+[sub_resource type="Environment" id="Environment_night"]
+background_mode = 1
+background_color = Color(0.01, 0.012, 0.02, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.25, 0.28, 0.35, 1)
+ambient_light_energy = 0.15
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.03, 0.04, 0.06, 1)
+fog_density = 0.04
+
+[node name="House" type="Node3D"]
+script = ExtResource("1_house")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_night")
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+
+[node name="ShadowFigure" parent="." instance=ExtResource("3_figure")]
