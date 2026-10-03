@@ -1,74 +1,206 @@
 class_name ShadowFigure
-extends Node3D
-## The thing the player hides from. Walks a fixed loop of waypoints and stops
-## at each one to "search". Reaching a visible player ends the run.
+extends PathWalker
+## The thing the player hides from. It patrols a loop through the house,
+## stops at every hiding place to check it, hears running, and sees a player
+## who stands in its line of sight. Hiding in a spot only works if it has not
+## seen you go in.
 
-@export var speed: float = 1.3
-@export var pause_seconds: float = 2.5
-@export var catch_distance: float = 1.2
-@export var stride_length: float = 0.95
+enum State { DORMANT, PATROL, INVESTIGATE, CHASE, SEARCH, DRAG }
 
-const FOOTSTEPS: Array[AudioStream] = [
-	preload("res://audio/footstep_1.wav"),
-	preload("res://audio/footstep_2.wav"),
-	preload("res://audio/footstep_3.wav"),
+const PATROL_ROUTE: Array[StringName] = [
+	&"kitchen", &"pantry_front", &"kitchen", &"d_lk", &"living", &"closet_front",
+	&"living", &"d_bl", &"bedroom", &"d_hb", &"hall", &"hall_front", &"hall", &"d_hk",
 ]
+const INSPECTED: Dictionary = {
+	&"pantry_front": &"pantry", &"closet_front": &"closet", &"bedroom": &"bed",
+}
 
-var route: Array[Vector3] = []
+@export var patrol_speed: float = 1.2
+@export var investigate_speed: float = 1.9
+@export var chase_speed: float = 3.3
+@export var sight_range: float = 9.0
+@export var sight_range_lit: float = 14.0
+@export var sight_half_angle_degrees: float = 62.0
+@export var catch_distance: float = 1.15
+@export var inspect_seconds: float = 4.0
 
-var _index: int = 0
+var state: State = State.DORMANT
+var _house: Node3D
+var _route_index: int = 0
 var _pause_left: float = 0.0
+var _alert: float = 0.0
+var _unseen_for: float = 0.0
+var _last_known := Vector3.ZERO
 var _caught: bool = false
-var _stride_progress: float = 0.0
-var _step_player := AudioStreamPlayer3D.new()
+var _model: Node3D
+var _drag_spot: HidingSpot
 
-func _ready() -> void:
-	_step_player.unit_size = 5.0
-	_step_player.max_distance = 22.0
-	_step_player.volume_db = 2.0
-	add_child(_step_player)
+func setup(house: Node3D) -> void:
+	_house = house
+	_graph = house.graph
+	_step_volume = 3.0
+	_model = BodyBuilder.person(Color(0.015, 0.015, 0.02), 2.05, true, Color(0.03, 0.045, 0.07))
+	add_child(_model)
 	deactivate()
 
 func activate() -> void:
-	if route.is_empty():
-		return
-	global_position = route[0]
-	_index = 1 % route.size()
-	_pause_left = 0.0
+	_caught = false
+	_route_index = 0
+	_alert = 0.0
+	_unseen_for = 0.0
+	global_position = _graph.position_of(PATROL_ROUTE[0])
 	visible = true
+	state = State.PATROL
+	_go_to_route_point()
 	set_physics_process(true)
 
 func deactivate() -> void:
 	visible = false
+	state = State.DORMANT
 	set_physics_process(false)
+	GameState.tension = 0.0
+
+func current_state_name() -> String:
+	return State.keys()[state]
 
 func _physics_process(delta: float) -> void:
+	var player := get_tree().get_first_node_in_group("player") as Player
+	if player == null:
+		return
+	_update_senses(player, delta)
+	match state:
+		State.PATROL:
+			_step_patrol(delta)
+		State.INVESTIGATE:
+			_step_path(delta, investigate_speed, State.SEARCH, 2.5)
+		State.CHASE:
+			_step_chase(player, delta)
+		State.SEARCH:
+			_step_search(delta)
+		State.DRAG:
+			_step_drag(player, delta)
+	_update_tension(player)
+
+func _update_senses(player: Player, delta: float) -> void:
+	if state == State.DRAG:
+		return
+	if player.hiding_in != null:
+		if state == State.CHASE:
+			_drag_spot = player.hiding_in
+			state = State.DRAG
+			_set_path_to(Vector3(_drag_spot.global_position.x, 0.0, _drag_spot.global_position.z))
+		_alert = maxf(_alert - delta * 0.5, 0.0)
+		return
+	var seen := _can_see(player)
+	if seen:
+		_unseen_for = 0.0
+		_last_known = player.global_position
+		var closeness := 1.0 - clampf(global_position.distance_to(player.global_position) / sight_range, 0.0, 1.0)
+		_alert = minf(_alert + delta * (0.6 + closeness * 2.2), 1.0)
+		if _alert >= 1.0 and state != State.CHASE:
+			state = State.CHASE
+			GameState.raise_event(&"figure_chase")
+			Sfx.play_at(&"thump", global_position, 4.0)
+	else:
+		_unseen_for += delta
+		_alert = maxf(_alert - delta * 0.35, 0.0)
+		if state == State.CHASE and _unseen_for > 3.5:
+			state = State.SEARCH
+			_set_path_to(_last_known)
+			_pause_left = 0.0
+		elif state != State.CHASE and global_position.distance_to(player.global_position) < player.noise_radius():
+			if state == State.PATROL or state == State.SEARCH:
+				_last_known = player.global_position
+				state = State.INVESTIGATE
+				_set_path_to(_last_known)
+	if global_position.distance_to(player.global_position) < catch_distance and state == State.CHASE:
+		_catch(player)
+
+func _can_see(player: Player) -> bool:
+	var eye := global_position + Vector3(0, 1.7, 0)
+	var target := player.eye_position()
+	var to_target := target - eye
+	var distance := to_target.length()
+	var limit := sight_range_lit if player.flashlight_on() else sight_range
+	if player.is_crouching():
+		limit *= 0.6
+	if distance > limit:
+		return false
+	var forward := -global_transform.basis.z
+	forward.y = 0.0
+	var flat := to_target
+	flat.y = 0.0
+	if distance > 1.6 and rad_to_deg(forward.normalized().angle_to(flat.normalized())) > sight_half_angle_degrees:
+		return false
+	var query := PhysicsRayQueryParameters3D.create(eye, target)
+	query.exclude = [player.get_rid()]
+	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+func _step_patrol(delta: float) -> void:
 	if _pause_left > 0.0:
 		_pause_left -= delta
 		return
-	var target := route[_index]
-	var offset := Vector3(target.x - global_position.x, 0.0, target.z - global_position.z)
-	if offset.length() < 0.1:
-		_index = (_index + 1) % route.size()
-		_pause_left = pause_seconds
-		return
-	global_position += offset.normalized() * speed * delta
-	_stride_progress += speed * delta
-	if _stride_progress >= stride_length:
-		_stride_progress = 0.0
-		_step_player.stream = FOOTSTEPS[randi() % FOOTSTEPS.size()]
-		_step_player.pitch_scale = randf_range(0.7, 0.85)
-		_step_player.play()
-	look_at(global_position + offset, Vector3.UP)
-	_check_for_player()
+	if _advance(delta, patrol_speed):
+		var node_id := PATROL_ROUTE[_route_index]
+		if INSPECTED.has(node_id):
+			var spot: HidingSpot = _house.spots[INSPECTED[node_id]]
+			_face(spot.global_position)
+			_pause_left = inspect_seconds
+			GameState.raise_event(&"figure_inspects", String(INSPECTED[node_id]))
+			Sfx.play_at(&"creak", spot.global_position, 0.0)
+		else:
+			_pause_left = 0.8
+		_route_index = (_route_index + 1) % PATROL_ROUTE.size()
+		_go_to_route_point()
 
-func _check_for_player() -> void:
+func _step_path(delta: float, speed: float, next_state: State, wait: float) -> void:
+	if _advance(delta, speed):
+		state = next_state
+		_pause_left = wait
+
+func _step_chase(player: Player, delta: float) -> void:
+	_set_path_to(_last_known if _unseen_for > 0.3 else player.global_position)
+	_advance(delta, chase_speed)
+
+func _step_search(delta: float) -> void:
+	if _pause_left > 0.0:
+		_pause_left -= delta
+		if _pause_left <= 0.0:
+			_route_index = _nearest_route_index()
+			state = State.PATROL
+			_go_to_route_point()
+		return
+	if _advance(delta, investigate_speed):
+		_pause_left = 3.0
+
+func _step_drag(player: Player, delta: float) -> void:
+	if _advance(delta, chase_speed) and not _caught:
+		_catch(player)
+
+func _catch(player: Player) -> void:
 	if _caught:
 		return
-	var player := get_tree().get_first_node_in_group("player") as Player
-	if player == null or player.hiding_in != null:
-		return
-	if global_position.distance_to(player.global_position) < catch_distance:
-		_caught = true
-		player.controls_enabled = false
-		GameState.raise_event(&"caught")
+	_caught = true
+	player.controls_enabled = false
+	GameState.caught_count += 1
+	GameState.raise_event(&"caught")
+
+func _nearest_route_index() -> int:
+	var best := 0
+	var best_distance := INF
+	for i in PATROL_ROUTE.size():
+		var distance := _graph.position_of(PATROL_ROUTE[i]).distance_to(global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = i
+	return best
+
+func _go_to_route_point() -> void:
+	_set_path_to(_graph.position_of(PATROL_ROUTE[_route_index]))
+
+func _update_tension(player: Player) -> void:
+	var distance := global_position.distance_to(player.global_position)
+	var proximity := clampf(1.0 - distance / 11.0, 0.0, 1.0)
+	var chase_boost := 0.5 if state == State.CHASE or state == State.DRAG else 0.0
+	var inspecting := 0.35 if player.hiding_in != null and _pause_left > 0.0 and distance < 3.5 else 0.0
+	GameState.tension = clampf(maxf(proximity * 0.8, _alert) + chase_boost + inspecting, 0.0, 1.0)

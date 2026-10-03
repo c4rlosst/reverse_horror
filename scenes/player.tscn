@@ -26,6 +26,7 @@ far = 40.0
 target_position = Vector3(0, 0, -2.2)
 
 [node name="Flashlight" type="SpotLight3D" parent="Head/Camera3D"]
+visible = false
 light_energy = 2.0
 spot_range = 14.0
 spot_angle = 28.0

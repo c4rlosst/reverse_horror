@@ -1,19 +1,21 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/house.gd" id="1_house"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
 [ext_resource type="PackedScene" path="res://scenes/shadow_figure.tscn" id="3_figure"]
+[ext_resource type="Script" path="res://scripts/director.gd" id="4_director"]
+[ext_resource type="Script" path="res://scripts/soundscape.gd" id="5_sound"]
 
 [sub_resource type="Environment" id="Environment_night"]
 background_mode = 1
-background_color = Color(0.01, 0.012, 0.02, 1)
+background_color = Color(0.008, 0.01, 0.016, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.25, 0.28, 0.35, 1)
-ambient_light_energy = 0.15
+ambient_light_color = Color(0.22, 0.25, 0.33, 1)
+ambient_light_energy = 0.26
 tonemap_mode = 2
 fog_enabled = true
-fog_light_color = Color(0.03, 0.04, 0.06, 1)
-fog_density = 0.04
+fog_light_color = Color(0.02, 0.025, 0.04, 1)
+fog_density = 0.035
 
 [node name="House" type="Node3D"]
 script = ExtResource("1_house")
@@ -24,3 +26,9 @@ environment = SubResource("Environment_night")
 [node name="Player" parent="." instance=ExtResource("2_player")]
 
 [node name="ShadowFigure" parent="." instance=ExtResource("3_figure")]
+
+[node name="Director" type="Node" parent="."]
+script = ExtResource("4_director")
+
+[node name="Soundscape" type="Node" parent="."]
+script = ExtResource("5_sound")
