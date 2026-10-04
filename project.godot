@@ -6,6 +6,8 @@ config_version=5
 config/name="Reverse Horror"
 run/main_scene="res://scenes/title.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
+boot_splash/bg_color=Color(0.043, 0.051, 0.071, 1)
+boot_splash/show_image=false
 
 [autoload]
 
@@ -59,6 +61,7 @@ back_away={
 
 [rendering]
 
+environment/defaults/default_clear_color=Color(0.043, 0.051, 0.071, 1)
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/canvas_textures/default_texture_filter=0
