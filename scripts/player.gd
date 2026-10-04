@@ -103,6 +103,11 @@ func exit_hiding() -> void:
 	_collision.set_deferred("disabled", false)
 	Sfx.play(&"rustle", -8.0)
 
+## Instantly faces a compass direction (degrees around Y, 0 is north).
+func set_facing(degrees: float) -> void:
+	_yaw = deg_to_rad(degrees)
+	rotation.y = _yaw
+
 ## Smoothly turns the view toward a world point. Used for scripted beats.
 func look_toward(point: Vector3, seconds: float) -> void:
 	var from := _camera.global_position
@@ -171,10 +176,10 @@ func _noise_for_speed(speed: float) -> float:
 	if GameState.perspective == GameState.Perspective.MONSTER:
 		return 2.0
 	if speed >= sprint_speed:
-		return 9.0
+		return 8.0
 	if speed <= crouch_speed:
-		return 1.5
-	return 4.0
+		return 1.0
+	return 3.0
 
 func _play_footstep() -> void:
 	var monster := GameState.perspective == GameState.Perspective.MONSTER

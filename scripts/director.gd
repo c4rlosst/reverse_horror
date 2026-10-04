@@ -17,6 +17,8 @@ var _figure: ShadowFigure
 var _father: FamilyMember
 var _mother: FamilyMember
 var _ring: AudioStreamPlayer3D
+var _ring_light: OmniLight3D
+var _ring_tween: Tween
 var _mimic: Node3D
 var _mimic_light: OmniLight3D
 var _has_key: bool = false
@@ -39,8 +41,8 @@ func _begin() -> void:
 	_connect_items()
 	GameState.event_raised.connect(_on_event)
 	_start_ringing()
-	GameState.objective_changed.emit("Answer the phone.")
-	GameState.say("You're alone in the house. The phone is ringing.", 4.5)
+	GameState.objective_changed.emit("Answer the ringing phone.")
+	GameState.say("You're alone in the house. A phone is ringing in the hall.", 5.0)
 	if _hud != null:
 		_hud.fade_in(2.5)
 	phase = Phase.RINGING
@@ -50,6 +52,10 @@ func _begin() -> void:
 			GameState.say("Drag the left side to move, the right to look. Tap Use at the phone.", 5.0)
 		else:
 			GameState.say("Move with WASD. Press E on the phone.", 4.0)
+	await _wait(14.0)
+	if phase == Phase.RINGING:
+		GameState.say("[You turn toward the ringing.]", 3.0)
+		_player.look_toward(_house.items[&"phone"].global_position, 1.2)
 
 func _connect_items() -> void:
 	var items: Dictionary = _house.items
@@ -95,6 +101,15 @@ func _start_ringing() -> void:
 	phone.add_child(_ring)
 	_ring.finished.connect(_ring.play)
 	_ring.play()
+	_ring_light = OmniLight3D.new()
+	_ring_light.light_color = Color(1.0, 0.45, 0.3)
+	_ring_light.omni_range = 3.5
+	_ring_light.light_energy = 0.0
+	_ring_light.position = Vector3(0, 0.3, 0)
+	phone.add_child(_ring_light)
+	_ring_tween = create_tween().set_loops()
+	_ring_tween.tween_property(_ring_light, "light_energy", 2.0, 0.15)
+	_ring_tween.tween_property(_ring_light, "light_energy", 0.1, 0.55)
 
 func _wait(seconds: float) -> void:
 	await get_tree().create_timer(seconds, false).timeout
@@ -120,6 +135,8 @@ func _on_phone_answered(_who: Player) -> void:
 	_house.items[&"phone"].enabled = false
 	_ring.finished.disconnect(_ring.play)
 	_ring.stop()
+	_ring_tween.kill()
+	_ring_light.light_energy = 0.0
 	GameState.raise_event(&"phone_answered")
 	GameState.objective_changed.emit("")
 	Sfx.play(&"phone_pickup", 0.0)
@@ -138,13 +155,16 @@ func _on_phone_answered(_who: Player) -> void:
 	Sfx.play_at(&"thump", _house.graph.position_of(&"living"), 4.0)
 	GameState.say("Something just moved in the house.", 3.5)
 	await _wait(1.5)
-	_figure.activate()
-	GameState.objective_changed.emit("Find a way out.")
+	_figure.activate(_player.global_position)
+	GameState.objective_changed.emit("Find a way out. Try the doors.")
 	_checkpoint = _player.global_position
 	phase = Phase.HUNT
 	await _wait(7.0)
 	if phase == Phase.HUNT:
 		GameState.say("Running is loud. Crouch to stay quiet, and hide if it gets close.", 5.0)
+	await _wait(50.0)
+	if phase == Phase.HUNT and not _has_key:
+		_point_to_key()
 
 func _on_key_taken(_who: Player) -> void:
 	var key: Interactable = _house.items[&"key"]
@@ -166,9 +186,13 @@ func _on_back_door(_who: Player) -> void:
 		return
 	if not _has_key:
 		Sfx.play(&"clunk", -6.0)
-		GameState.say("Locked. There has to be a key somewhere.", 3.5)
+		_point_to_key()
 		return
 	_run_reveal()
+
+func _point_to_key() -> void:
+	GameState.say("Locked. A key could be in the bedroom, west of the hall.", 5.0)
+	GameState.objective_changed.emit("Find the key. Try the bedroom nightstand.")
 
 func _on_event(id: StringName) -> void:
 	match id:
@@ -185,7 +209,7 @@ func _respawn() -> void:
 	_player.exit_hiding()
 	_player.global_position = _checkpoint
 	_player.controls_enabled = true
-	_figure.activate()
+	_figure.activate(_player.global_position)
 	GameState.tension = 0.0
 	GameState.say("You come to on the hall floor, as if you never left it.", 4.0)
 	if _hud != null:

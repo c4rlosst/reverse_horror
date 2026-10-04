@@ -32,7 +32,7 @@ func _ready() -> void:
 	_build_graph()
 	figure.setup(self)
 	player.global_position = Vector3(5.5, 0.05, 3.6)
-	player.rotation.y = deg_to_rad(90.0)
+	player.set_facing(112.0)
 
 func _process(_delta: float) -> void:
 	for id in lights:
@@ -253,7 +253,13 @@ func _build_bedroom() -> void:
 	var key := Interactable.new()
 	key.name = "Key"
 	key.victim_prompt = "Take the key"
-	_box("Key", Vector3(-6.4, 0.6, 2.95), Vector3(0.1, 0.03, 0.05), Surfaces.glow(Color(0.9, 0.75, 0.3), 0.6), true, key)
+	_box("Key", Vector3(-6.4, 0.6, 2.95), Vector3(0.18, 0.04, 0.07), Surfaces.glow(Color(1.0, 0.8, 0.3), 1.6), true, key)
+	var key_glow := OmniLight3D.new()
+	key_glow.light_color = Color(1.0, 0.8, 0.4)
+	key_glow.light_energy = 0.8
+	key_glow.omni_range = 1.8
+	key_glow.position = Vector3(0, 0.2, 0)
+	key.add_child(key_glow)
 	items[&"key"] = key
 
 	var dresser := _solid("Dresser", Vector3(-3.0, 0.45, 4.65), Vector3(1.2, 0.9, 0.5))
@@ -268,7 +274,10 @@ func _build_hall() -> void:
 	phone.name = "Phone"
 	phone.victim_prompt = "Answer the phone"
 	phone.victim_text = ""
-	_box("Phone", Vector3(3.0, 0.9, 4.65), Vector3(0.28, 0.14, 0.2), Surfaces.plain(Color(0.05, 0.05, 0.06), 0.3), true, phone)
+	var cream := Surfaces.plain(Color(0.82, 0.78, 0.64), 0.4)
+	_box("Phone", Vector3(3.0, 0.9, 4.65), Vector3(0.34, 0.12, 0.26), cream, true, phone)
+	_part(phone, Vector3(0, 0.09, 0), Vector3(0.3, 0.06, 0.08), Surfaces.plain(Color(0.7, 0.2, 0.15), 0.4))
+	_part(phone, Vector3(0.1, 0.07, 0.1), Vector3(0.04, 0.02, 0.04), Surfaces.glow(Color(1.0, 0.35, 0.2), 1.5))
 	items[&"phone"] = phone
 
 	var hall_lamp := _make_lamp("HallLamp", Vector3(3.8, 0.95, 4.65))
@@ -293,7 +302,7 @@ func _build_hall() -> void:
 
 	var front_door := _door("FrontDoor", Vector3(6.0, 1.05, 4.88), false)
 	front_door.victim_prompt = "Try the front door"
-	front_door.victim_text = "Locked. The deadbolt is on the outside."
+	front_door.victim_text = "Locked from the outside. The back door is through the kitchen."
 	front_door.monster_text = "You could open it. You don't."
 	items[&"front_door"] = front_door
 

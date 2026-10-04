@@ -66,3 +66,13 @@ func path(from: Vector3, to: Vector3) -> PackedVector3Array:
 			result.append(point)
 	result.append(to)
 	return result
+
+## Walking distance between two points through the house, so noise does not
+## travel through walls.
+func path_length(from: Vector3, to: Vector3) -> float:
+	var total := 0.0
+	var previous := from
+	for point in path(from, to):
+		total += previous.distance_to(point)
+		previous = point
+	return total
