@@ -31,7 +31,12 @@ func _advance(delta: float, speed: float) -> bool:
 	if _stride >= _step_length:
 		_stride = 0.0
 		Sfx.play_at(&"footstep", global_position, _step_volume, randf_range(_step_pitch.x, _step_pitch.y))
+		_on_step()
 	return false
+
+## Called once per footstep; subclasses can leave marks.
+func _on_step() -> void:
+	pass
 
 func _face(point: Vector3, weight: float = 1.0) -> void:
 	var flat := Vector3(point.x - global_position.x, 0.0, point.z - global_position.z)

@@ -65,14 +65,14 @@ func _connect_items() -> void:
 	(_house.spots[&"closet"] as HidingSpot).interacted.connect(_on_closet_opened)
 
 func _build_mimic() -> void:
-	_mimic = BodyBuilder.person(Color(0.02, 0.025, 0.04), 2.05, true, Color(0.16, 0.22, 0.34))
+	_mimic = BodyBuilder.creature()
 	_mimic.visible = false
 	_house.add_child(_mimic)
 	_mimic_light = OmniLight3D.new()
 	_mimic_light.light_color = Color(0.5, 0.65, 1.0)
-	_mimic_light.light_energy = 2.4
-	_mimic_light.omni_range = 4.5
-	_mimic_light.position = Vector3(0, 1.4, 1.1)
+	_mimic_light.light_energy = 2.6
+	_mimic_light.omni_range = 1.7
+	_mimic_light.position = Vector3(0, 1.4, -0.5)
 	_mimic.add_child(_mimic_light)
 
 func _build_family() -> void:

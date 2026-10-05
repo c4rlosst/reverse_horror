@@ -36,13 +36,25 @@ var _last_known := Vector3.ZERO
 var _caught: bool = false
 var _model: Node3D
 var _drag_spot: HidingSpot
+var _growled: bool = false
+var _rasp := AudioStreamPlayer3D.new()
+var _print_side: float = 1.0
 
 func setup(house: Node3D) -> void:
 	_house = house
 	_graph = house.graph
 	_step_volume = 3.0
-	_model = BodyBuilder.person(Color(0.015, 0.015, 0.02), 2.05, true, Color(0.03, 0.045, 0.07))
+	_model = BodyBuilder.creature()
 	add_child(_model)
+	var animator := CreatureAnimator.new()
+	add_child(animator)
+	animator.setup(_model, self)
+	_rasp.stream = Sfx.loop_stream(&"breathing")
+	_rasp.pitch_scale = 0.55
+	_rasp.unit_size = 3.0
+	_rasp.max_distance = 12.0
+	_rasp.volume_db = -3.0
+	add_child(_rasp)
 	deactivate()
 
 ## Starts patrolling from the route point farthest from `away_from`, standing
@@ -60,6 +72,7 @@ func activate(away_from: Vector3 = Vector3.ZERO) -> void:
 	_route_index = _next_route_index()
 	_go_to_route_point()
 	set_physics_process(true)
+	_rasp.play()
 
 func _farthest_route_index(point: Vector3) -> int:
 	var best := 0
@@ -79,6 +92,7 @@ func _next_route_index() -> int:
 	return next
 
 func deactivate() -> void:
+	_rasp.stop()
 	visible = false
 	state = State.DORMANT
 	set_physics_process(false)
@@ -126,6 +140,9 @@ func _update_senses(player: Player, delta: float) -> void:
 		_last_known = player.global_position
 		var closeness := 1.0 - clampf(global_position.distance_to(player.global_position) / sight_range, 0.0, 1.0)
 		_alert = minf(_alert + delta * (0.45 + closeness * 1.8), 1.0)
+		if _alert >= 0.45 and not _growled:
+			_growled = true
+			Sfx.play_at(&"growl", global_position, 3.0)
 		if _alert >= 1.0 and state != State.CHASE:
 			state = State.CHASE
 			GameState.raise_event(&"figure_chase")
@@ -133,6 +150,8 @@ func _update_senses(player: Player, delta: float) -> void:
 	else:
 		_unseen_for += delta
 		_alert = maxf(_alert - delta * 0.35, 0.0)
+		if _alert < 0.1:
+			_growled = false
 		if state == State.CHASE and _unseen_for > 3.5:
 			state = State.SEARCH
 			_set_path_to(_last_known)
@@ -238,3 +257,19 @@ func _update_tension(player: Player) -> void:
 	var chase_boost := 0.5 if state == State.CHASE or state == State.DRAG else 0.0
 	var inspecting := 0.35 if player.hiding_in != null and _pause_left > 0.0 and distance < 3.5 else 0.0
 	GameState.tension = clampf(maxf(proximity * 0.8, _alert) + chase_boost + inspecting, 0.0, 1.0)
+
+## Wet footprints trail behind it and dry out after a while.
+func _on_step() -> void:
+	var print_mesh := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.14, 0.012, 0.32)
+	print_mesh.mesh = box
+	print_mesh.material_override = Surfaces.plain(Color(0.03, 0.05, 0.07), 0.15)
+	_house.add_child(print_mesh)
+	var sideways := global_transform.basis.x * 0.12 * _print_side
+	_print_side = -_print_side
+	print_mesh.global_position = Vector3(global_position.x + sideways.x, 0.007, global_position.z + sideways.z)
+	print_mesh.rotation.y = rotation.y
+	var tween := print_mesh.create_tween()
+	tween.tween_interval(18.0)
+	tween.tween_callback(print_mesh.queue_free)

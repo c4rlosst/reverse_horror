@@ -25,6 +25,8 @@ const BANK := {
 	&"knock": [preload("res://audio/door_knock.wav")],
 	&"thump": [preload("res://audio/thump.wav")],
 	&"siren": [preload("res://audio/siren.wav")],
+	&"growl": [preload("res://audio/growl.wav")],
+	&"screech": [preload("res://audio/screech.wav")],
 }
 
 var world: Node = null
