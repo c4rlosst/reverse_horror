@@ -20,6 +20,8 @@ var caught_count: int = 0
 var started_msec: int = 0
 ## 0..1, how close the player is to being found (or, as the monster, found out).
 var tension: float = 0.0
+## Camera push: 1 while being hunted (field of view widens), slightly negative while stared at.
+var pursuit: float = 0.0
 
 ## True once the player has touched the screen; false again on any key or mouse.
 var touch_mode: bool = false
@@ -36,6 +38,7 @@ func reset() -> void:
 	hide_count = 0
 	caught_count = 0
 	tension = 0.0
+	pursuit = 0.0
 	started_msec = Time.get_ticks_msec()
 
 func set_perspective(value: Perspective) -> void:

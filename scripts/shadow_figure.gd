@@ -5,7 +5,7 @@ extends PathWalker
 ## who stands in its line of sight. Hiding in a spot only works if it has not
 ## seen you go in.
 
-enum State { DORMANT, PATROL, INVESTIGATE, CHASE, SEARCH, DRAG }
+enum State { DORMANT, PATROL, INVESTIGATE, CHASE, SEARCH, DRAG, STARE }
 
 const PATROL_ROUTE: Array[StringName] = [
 	&"kitchen", &"pantry_front", &"kitchen", &"d_lk", &"living", &"closet_front",
@@ -24,6 +24,8 @@ const INSPECTED: Dictionary = {
 @export var grace_seconds: float = 6.0
 @export var catch_distance: float = 1.15
 @export var inspect_seconds: float = 4.0
+## How long it stands and watches before it commits to the chase.
+@export var stare_seconds: float = 3.0
 
 var state: State = State.DORMANT
 var _house: Node3D
@@ -36,7 +38,8 @@ var _last_known := Vector3.ZERO
 var _caught: bool = false
 var _model: Node3D
 var _drag_spot: HidingSpot
-var _growled: bool = false
+var _warned: bool = false
+var _stare_left: float = 0.0
 var _rasp := AudioStreamPlayer3D.new()
 var _print_side: float = 1.0
 
@@ -97,6 +100,7 @@ func deactivate() -> void:
 	state = State.DORMANT
 	set_physics_process(false)
 	GameState.tension = 0.0
+	GameState.pursuit = 0.0
 
 func current_state_name() -> String:
 	return State.keys()[state]
@@ -117,13 +121,15 @@ func _physics_process(delta: float) -> void:
 			_step_search(delta)
 		State.DRAG:
 			_step_drag(player, delta)
+		State.STARE:
+			_step_stare(player, delta)
 	_update_tension(player)
 
 func _update_senses(player: Player, delta: float) -> void:
 	if state == State.DRAG:
 		return
 	if player.hiding_in != null:
-		if state == State.CHASE:
+		if state == State.CHASE or state == State.STARE:
 			if _unseen_for < 0.6:
 				_drag_spot = player.hiding_in
 				state = State.DRAG
@@ -140,18 +146,16 @@ func _update_senses(player: Player, delta: float) -> void:
 		_last_known = player.global_position
 		var closeness := 1.0 - clampf(global_position.distance_to(player.global_position) / sight_range, 0.0, 1.0)
 		_alert = minf(_alert + delta * (0.45 + closeness * 1.8), 1.0)
-		if _alert >= 0.45 and not _growled:
-			_growled = true
-			Sfx.play_at(&"growl", global_position, 3.0)
-		if _alert >= 1.0 and state != State.CHASE:
-			state = State.CHASE
-			GameState.raise_event(&"figure_chase")
-			Sfx.play_at(&"thump", global_position, 4.0)
+		if _alert >= 0.45 and not _warned:
+			_warned = true
+			Sfx.play_at(&"creak", global_position, 2.0)
+		if _alert >= 1.0 and state != State.CHASE and state != State.STARE:
+			_begin_stare()
 	else:
 		_unseen_for += delta
 		_alert = maxf(_alert - delta * 0.35, 0.0)
 		if _alert < 0.1:
-			_growled = false
+			_warned = false
 		if state == State.CHASE and _unseen_for > 3.5:
 			state = State.SEARCH
 			_set_path_to(_last_known)
@@ -163,8 +167,40 @@ func _update_senses(player: Player, delta: float) -> void:
 			Sfx.play_at(&"creak", global_position, 0.0)
 			_face(player.global_position)
 			_set_path_to(_last_known)
-	if global_position.distance_to(player.global_position) < catch_distance and state == State.CHASE:
+	var gap := global_position.distance_to(player.global_position)
+	if state == State.STARE and gap < 2.2:
+		_begin_chase()
+	elif gap < catch_distance and state == State.CHASE:
 		_catch(player)
+
+## It stops where it is, turns to face you, and holds still. The breathing
+## stops too, so the sudden quiet is the warning.
+func _begin_stare() -> void:
+	state = State.STARE
+	_stare_left = stare_seconds
+	_path = PackedVector3Array()
+	_path_index = 0
+	_rasp.stop()
+	Sfx.play_at(&"growl", global_position, 3.0)
+	GameState.raise_event(&"figure_stare")
+
+func _step_stare(player: Player, delta: float) -> void:
+	_face(player.global_position, delta * 5.0)
+	_stare_left -= delta
+	if _unseen_for > 1.0:
+		state = State.SEARCH
+		_set_path_to(_last_known)
+		_pause_left = 0.0
+		_rasp.play()
+	elif _stare_left <= 0.0:
+		_begin_chase()
+
+func _begin_chase() -> void:
+	state = State.CHASE
+	_rasp.play()
+	GameState.raise_event(&"figure_chase")
+	Sfx.play_at(&"screech", global_position, 5.0)
+	Sfx.play_at(&"thump", global_position, 4.0)
 
 func _can_see(player: Player) -> bool:
 	var eye := global_position + Vector3(0, 1.7, 0)
@@ -254,7 +290,9 @@ func _go_to_route_point() -> void:
 func _update_tension(player: Player) -> void:
 	var distance := global_position.distance_to(player.global_position)
 	var proximity := clampf(1.0 - distance / 11.0, 0.0, 1.0)
-	var chase_boost := 0.5 if state == State.CHASE or state == State.DRAG else 0.0
+	var hunting := state == State.CHASE or state == State.DRAG
+	GameState.pursuit = 1.0 if hunting else (-0.3 if state == State.STARE else 0.0)
+	var chase_boost := 0.5 if hunting or state == State.STARE else 0.0
 	var inspecting := 0.35 if player.hiding_in != null and _pause_left > 0.0 and distance < 3.5 else 0.0
 	GameState.tension = clampf(maxf(proximity * 0.8, _alert) + chase_boost + inspecting, 0.0, 1.0)
 

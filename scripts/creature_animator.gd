@@ -6,6 +6,7 @@ extends Node
 
 const FPS := 14.0
 const CHASING := [3, 5]
+const STARING := 6
 
 var _parts: Dictionary
 var _owner: Node3D
@@ -27,7 +28,7 @@ func setup(model: Node3D, owner_node: Node3D) -> void:
 	_parts = model.get_meta("parts")
 	_owner = owner_node
 	_last_position = owner_node.global_position
-	pose(0.0, false, 0.0)
+	pose(0.0, false, 0.0, false)
 
 func _process(delta: float) -> void:
 	if _owner == null or not _owner.visible:
@@ -39,10 +40,12 @@ func _process(delta: float) -> void:
 	_tick = 0.0
 	_speed = lerpf(_speed, _owner.global_position.distance_to(_last_position) / dt, 0.6)
 	_last_position = _owner.global_position
-	var chasing: bool = CHASING.has(_owner.get("state"))
+	var state: int = _owner.get("state")
+	var chasing: bool = CHASING.has(state)
+	var staring: bool = state == STARING
 	_phase += _speed * dt * 2.1
-	_step_head(dt, chasing)
-	pose(_phase, chasing, clampf(_speed / 1.4, 0.0, 1.0))
+	_step_head(dt, chasing or staring)
+	pose(_phase, chasing, clampf(_speed / 1.4, 0.0, 1.0), staring)
 
 func _step_head(dt: float, chasing: bool) -> void:
 	_next_wander -= dt
@@ -69,10 +72,10 @@ func _step_head(dt: float, chasing: bool) -> void:
 	_head_roll = lerpf(_head_roll, target_roll, 0.4)
 	_head_pitch = lerpf(_head_pitch, target_pitch, 0.4)
 
-func pose(phase: float, chasing: bool, walk: float) -> void:
+func pose(phase: float, chasing: bool, walk: float, staring: bool) -> void:
 	var swing := sin(phase)
 	var arm_swing := sin(phase + 0.6)
-	_lean = lerpf(_lean, 0.42 if chasing else 0.0, 0.3)
+	_lean = lerpf(_lean, 0.42 if chasing else (0.14 if staring else 0.0), 0.3)
 	_parts["hips"].position.y = 0.95 - 0.035 * absf(swing) * walk
 	_parts["spine"].rotation = Vector3(deg_to_rad(-22.0) - _lean, 0.0, sin(phase * 0.5) * 0.08 * walk)
 	_parts["thigh_l"].rotation.x = swing * 0.55 * walk + 0.12
@@ -85,11 +88,15 @@ func pose(phase: float, chasing: bool, walk: float) -> void:
 			_parts["shoulder_" + tag].rotation.x = 1.3 + sin(phase * 1.5 + sign) * 0.12
 			_parts["elbow_" + tag].rotation.x = 0.4
 			_parts["hand_" + tag].rotation.x = randf_range(-0.2, 0.2)
+		elif staring:
+			_parts["shoulder_" + tag].rotation.x = 0.22 + sin(Time.get_ticks_msec() * 0.011 + sign) * 0.04
+			_parts["elbow_" + tag].rotation.x = 0.1
+			_parts["hand_" + tag].rotation.x = randf_range(-0.35, 0.35)
 		else:
 			_parts["shoulder_" + tag].rotation.x = -arm_swing * sign * 0.28 * walk + 0.08
 			_parts["elbow_" + tag].rotation.x = -0.12
 			_parts["hand_" + tag].rotation.x = sin(phase * 0.7 + sign) * 0.1
 	_parts["neck"].rotation = Vector3(-0.3 - _lean * 0.5, 0.0, 0.0)
 	_parts["head"].rotation = Vector3(_head_pitch, _head_yaw + _twitch, _head_roll + _twitch * 0.5)
-	var jaw_open := 0.1 + (0.65 + randf() * 0.15 if chasing else 0.0)
+	var jaw_open := 0.1 + (0.65 + randf() * 0.15 if chasing else (0.3 + randf() * 0.06 if staring else 0.0))
 	_parts["jaw"].rotation.x = -jaw_open

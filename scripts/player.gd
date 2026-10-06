@@ -5,6 +5,8 @@ extends CharacterBody3D
 
 const MOUSE_SENSITIVITY := 0.0022
 const GRAVITY := 12.0
+const BASE_FOV := 70.0
+const CHASE_FOV_BOOST := 26.0
 
 @export var walk_speed: float = 2.4
 @export var sprint_speed: float = 4.0
@@ -55,6 +57,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		toggle_flashlight()
 
 func _physics_process(delta: float) -> void:
+	_update_fov(delta)
 	_head_y = lerpf(_head_y, _target_head_height(), minf(delta * 8.0, 1.0))
 	_flicker_flashlight()
 	if hiding_in != null:
@@ -65,6 +68,16 @@ func _physics_process(delta: float) -> void:
 		return
 	_move(delta)
 	_update_prompt()
+
+## Widens the view when something is hunting you and squeezes it while
+## something stares, so the world feels like it is rushing past.
+func _update_fov(delta: float) -> void:
+	var target := BASE_FOV + GameState.pursuit * CHASE_FOV_BOOST
+	if GameState.pursuit > 0.5 and Input.is_action_pressed("sprint"):
+		target += 4.0
+	_camera.fov = lerpf(_camera.fov, target, minf(delta * (6.0 if GameState.pursuit > 0.5 else 3.0), 1.0))
+	_camera.h_offset = randf_range(-1.0, 1.0) * 0.012 * maxf(GameState.pursuit, 0.0)
+	_camera.v_offset = randf_range(-1.0, 1.0) * 0.012 * maxf(GameState.pursuit, 0.0)
 
 func eye_position() -> Vector3:
 	return _camera.global_position

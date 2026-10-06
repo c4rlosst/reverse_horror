@@ -26,6 +26,7 @@ var _checkpoint := Vector3(5.5, 0.05, 3.6)
 var _monster_time: float = 0.0
 var _siren_started: bool = false
 var _choice_ready: bool = false
+var _stare_hinted: bool = false
 var _hud: Node
 
 func _ready() -> void:
@@ -198,8 +199,10 @@ func _on_event(id: StringName) -> void:
 	match id:
 		&"caught":
 			_respawn()
-		&"figure_inspects":
-			pass
+		&"figure_stare":
+			if not _stare_hinted:
+				_stare_hinted = true
+				GameState.say("It has stopped. It's looking right at you. Get out of its sight.", 5.0)
 
 func _respawn() -> void:
 	if phase == Phase.MONSTER or phase == Phase.REVEAL:
